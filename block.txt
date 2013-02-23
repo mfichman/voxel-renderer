@@ -1,0 +1,19 @@
+
+
+
+4x4 grid = 5x5 vertices
+
+x--x--x--x--x
+|  |  |  |  |
+x--x--x--x--x
+|  |  |  |  |
+x--x--x--x--x
+|  |  |  |  |
+x--x--x--x--x
+
+
+
+Iterate over vertices.  If the vertex is hidden, skip it.
+
+
+6 faces per cube...
