@@ -41,7 +41,7 @@ void qChunkInit(qChunk* self, qVec3i* pos) {
                 S64 yabs = y+pos->y;
                 S64 zabs = z+pos->z; 
                 F64 xs = (xabs)/48.;
-                F64 ys = (yabs+island)/32.;
+                F64 ys = (yabs+island)/16.;
                 F64 zs = (zabs)/48.;
                 F64 val = qSimplexNoise(xs, ys, zs);
                 F64 hfact = (F64)(y+pos->y)/(F64)qCHUNK_SIZE;
@@ -112,7 +112,6 @@ void qChunkGenFace(qChunk* self, qVec3i* pos, qBlockFace i, U32 width, U32 heigh
         { { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 0 }, { 1, 0, 0 }, }, // Back
     };
     U32 sx = 1, sy = 1, sz = 1;
-/*
     switch (i) {
     case qBlockLEFT:
     case qBlockRIGHT:
@@ -132,8 +131,6 @@ void qChunkGenFace(qChunk* self, qVec3i* pos, qBlockFace i, U32 width, U32 heigh
     default:
         assert(!"Invalid face type");
     }
-*/
-
     assert(i <= 6);
     
     for (U32 j = 0; j < 4; ++j) {
@@ -153,21 +150,31 @@ void qChunkGenFace(qChunk* self, qVec3i* pos, qBlockFace i, U32 width, U32 heigh
     vertices += 4;
 }
 
-typedef qBlock qPlane[qCHUNK_SIZE][qCHUNK_SIZE];
-
 void qChunkGenPlane(qChunk* self, qPlane plane, qBlockFace face, U32 k) {
     // Coalesce adjacent blocks in the current plane, and render faces for the
     // adjacent blocks.
     U32 stride = min(qCHUNK_SIZE, 1 << self->lod);
     for (U32 i = 0; i < qCHUNK_SIZE; i += stride) {
-        for  (U32 j = 0; j < qCHUNK_SIZE; j += stride) {
+        for (U32 j = 0; j < qCHUNK_SIZE; j += stride) {
             qBlock cur = plane[i][j];
             if (!cur) { continue; }
             qVec3i pos = { 0, 0, 0 };
-            U32 width = 1;
-            U32 height = 1; 
-grow:
-            if (width > height && (j+height+1 < qCHUNK_SIZE)) {
+            switch (face) {
+            case qBlockLEFT:
+            case qBlockRIGHT: pos.x = k; pos.y = i; pos.z = j; break;
+            case qBlockFRONT:
+            case qBlockBACK: pos.x = i; pos.y = j; pos.z = k; break;
+            case qBlockTOP:
+            case qBlockBOTTOM: pos.x = i; pos.y = k; pos.z = j; break;
+            default:
+                assert(!"Invalid face type");
+            }
+            U32 width = stride;
+            U32 height = stride; 
+            U32 fail = 0;
+            plane[i][j] = 0;
+growHeight:
+            if (fail <= 1 && width >= height && (j+height < qCHUNK_SIZE)) {
                 // Grow the height of the face.  Check all the blocks that
                 // would be coalseced to make sure they are of the same type.
                 // If not, then escape.  Example:
@@ -175,33 +182,35 @@ grow:
                 // *:(i+1,j+0) *:(i+1,j+1)
                 // Check the *'s to see if they are the same type. 
                 for (U32 di = i; di < i+width; di += stride) {
-                    qBlock grow = plane[di][j+height+1];
-                    if (grow != cur) { goto done; }
+                    qBlock grow = plane[di][j+height];
+                    if (grow != cur) { ++fail; goto growWidth; }
                 }
                 for (U32 di = i; di < i+width; di += stride) {
-                    plane[di][j+height+1] = 0;
+                    plane[di][j+height] = 0;
                 }
-                ++height;
-                goto grow;
-            } else if (i+width+1 < qCHUNK_SIZE) {
+                fail = 0;
+                height += stride;
+                goto growWidth;
+            }
+growWidth:
+            if (fail <= 1 && width <= height && (i+width < qCHUNK_SIZE)) {
                 // Grow the width fo the face
                 for (U32 dj = j; dj < j+height; dj += stride) {
-                    qBlock grow = plane[i+width+1][dj];
-                    if (grow != cur) { goto done; }
+                    qBlock grow = plane[i+width][dj];
+                    if (grow != cur) { ++fail; goto growHeight; }
                 }
                 for (U32 dj = j; dj < j+height; dj += stride) {
-                    plane[i+width+1][dj] = 0;
+                    plane[i+width][dj] = 0;
                 }
-                ++width;
-                goto grow;
+                fail = 0;
+                width += stride;
+                goto growHeight;
             } 
-done:
             qChunkGenFace(self, &pos, face, width, height);
         } 
     }
 }
 
-/*
 void qChunkGenMeshX(qChunk* self) {
     // Sweep through the mesh and generate non-culled faces
     U32 stride = min(qCHUNK_SIZE, 1 << self->lod);
@@ -213,12 +222,17 @@ void qChunkGenMeshX(qChunk* self) {
         qBlock right[qCHUNK_SIZE][qCHUNK_SIZE];
         for (U32 y = 0; y < qCHUNK_SIZE; y += stride) {
             for (U32 z = 0; z < qCHUNK_SIZE; z+= stride) {
-                qVec3i pos = {x, y, z };
+                qVec3i pos = { x, y, z };
                 qBlock cur = qChunkBlock(self, &pos);
                 if (cur && !prev[y][z]) {
+                    right[y][z] = 0;
                     left[y][z] = cur; 
                 } else if (!cur && prev[y][z]) {
-                    right[y][z] = cur; 
+                    right[y][z] = prev[y][z]; 
+                    left[y][z] = 0;
+                } else {
+                    right[y][z] = 0;
+                    left[y][z] = 0;
                 }
                 prev[y][z] = cur;
             }
@@ -227,64 +241,64 @@ void qChunkGenMeshX(qChunk* self) {
         qChunkGenPlane(self, right, qBlockRIGHT, x);
     }
 }
-*/
-
-void qChunkGenMeshX(qChunk* self) {
-    U32 stride = min(qCHUNK_SIZE, 1 << self->lod);
-    for (U32 y = 0; y < qCHUNK_SIZE; y += stride) {
-        for (U32 z = 0; z < qCHUNK_SIZE; z += stride) {
-            qBlock prev = 0;
-            for (U32 x = 0; x < qCHUNK_SIZE+1; x += stride) {
-                qVec3i pos = { x, y, z };
-                qBlock cur = qChunkBlock(self, &pos);
-                if (cur && !prev) {
-                    // Generate a front face
-                    qChunkGenFace(self, &pos, qBlockLEFT, stride, stride);
-                } else if (!cur && prev) {
-                    // Generate a back face
-                    qChunkGenFace(self, &pos, qBlockRIGHT, stride, stride);
-                }
-                prev = cur;
-            }
-        }
-    }
-}
 
 void qChunkGenMeshY(qChunk* self) {
     U32 stride = min(qCHUNK_SIZE, 1 << self->lod);
-    for (U32 x = 0; x < qCHUNK_SIZE; x += stride) {
-        for (U32 z = 0; z < qCHUNK_SIZE; z += stride) {
-            qBlock prev = 0;
-            for (U32 y = 0; y < qCHUNK_SIZE+1; y += stride) {
+    qBlock prev[qCHUNK_SIZE][qCHUNK_SIZE];
+    memset(&prev, 0, sizeof(prev)); // Clear 'prev' array
+     
+    for (U32 y = 0; y < qCHUNK_SIZE+1; y += stride) {
+        qBlock bottom[qCHUNK_SIZE][qCHUNK_SIZE];
+        qBlock top[qCHUNK_SIZE][qCHUNK_SIZE];
+        for (U32 x = 0; x < qCHUNK_SIZE; x += stride) {
+            for (U32 z = 0; z < qCHUNK_SIZE; z+= stride) {
                 qVec3i pos = { x, y, z };
                 qBlock cur = qChunkBlock(self, &pos);
-                if (cur && !prev) {
-                    qChunkGenFace(self, &pos, qBlockBOTTOM, stride, stride);
-                } else if (!cur && prev) {
-                    qChunkGenFace(self, &pos, qBlockTOP, stride, stride);
+                if (cur && !prev[x][z]) {
+                    top[x][z] = 0;
+                    bottom[x][z] = cur; 
+                } else if (!cur && prev[x][z]) {
+                    top[x][z] = prev[x][z]; 
+                    bottom[x][z] = 0;
+                } else {
+                    top[x][z] = 0;
+                    bottom[x][z] = 0;
                 }
-                prev = cur;
+                prev[x][z] = cur;
             }
-        }
+        } 
+        qChunkGenPlane(self, bottom, qBlockBOTTOM, y);
+        qChunkGenPlane(self, top, qBlockTOP, y);
     }
 }
 
 void qChunkGenMeshZ(qChunk* self) {
     U32 stride = min(qCHUNK_SIZE, 1 << self->lod);
-    for (U32 x = 0; x < qCHUNK_SIZE; x += stride) {
-        for (U32 y = 0; y < qCHUNK_SIZE; y += stride) {
-            qBlock prev = 0;
-            for (U32 z = 0; z < qCHUNK_SIZE+1; z += stride) {
+    qBlock prev[qCHUNK_SIZE][qCHUNK_SIZE];
+    memset(&prev, 0, sizeof(prev)); // Clear 'prev' array
+     
+    for (U32 z = 0; z < qCHUNK_SIZE+1; z += stride) {
+        qBlock back[qCHUNK_SIZE][qCHUNK_SIZE];
+        qBlock front[qCHUNK_SIZE][qCHUNK_SIZE];
+        for (U32 x = 0; x < qCHUNK_SIZE; x += stride) {
+            for (U32 y = 0; y < qCHUNK_SIZE; y += stride) {
                 qVec3i pos = { x, y, z };
                 qBlock cur = qChunkBlock(self, &pos);
-                if (cur && !prev) {
-                    qChunkGenFace(self, &pos, qBlockBACK, stride, stride);
-                } else if (!cur && prev) {
-                    qChunkGenFace(self, &pos, qBlockFRONT, stride, stride);
+                if (cur && !prev[x][y]) {
+                    front[x][y] = 0;
+                    back[x][y] = cur; 
+                } else if (!cur && prev[x][y]) {
+                    front[x][y] = prev[x][y]; 
+                    back[x][y] = 0;
+                } else {
+                    front[x][y] = 0;
+                    back[x][y] = 0;
                 }
-                prev = cur;
+                prev[x][y] = cur;
             }
-        }
+        } 
+        qChunkGenPlane(self, back, qBlockBACK, z);
+        qChunkGenPlane(self, front, qBlockFRONT, z);
     }
 }
 

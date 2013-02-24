@@ -67,7 +67,7 @@ void qWinInit() {
     glEnableVertexAttribArray(qShaderVERTEX);
     glEnableVertexAttribArray(qShaderNORMAL);
     glEnableVertexAttribArray(qShaderTEXTURE);
-    //glEnable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
@@ -92,26 +92,36 @@ int main() {
 
     // Everything below here is just for messing around
     glClearColor(.2, .2, .2, 1);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+/*
     qChunk* chunk = qChunkNew();
     qVec3i pos1 = { 0, 0, 0 };
     qChunkSetBlock(chunk, &pos1, 1);
-    qVec3i pos2 = { 1, 0, 0 };
+    qVec3i pos2 = { 0, 1, 0 };
     qChunkSetBlock(chunk, &pos2, 1);
+    qVec3i pos3 = { 0, 0, 1 };
+    qChunkSetBlock(chunk, &pos3, 1);
+    qVec3i pos4 = { 0, 1, 1 };
+    qChunkSetBlock(chunk, &pos4, 1);
+    qVec3i pos5 = { 1, 0, 0 };
+    qChunkSetBlock(chunk, &pos5, 1);
+    qVec3i pos = { 0, 0, 0 };
+    qChunkInit(chunk, &pos);
     qChunkGenMesh(chunk, 0);
+*/
 
-/*
     qScene* scene = qSceneNew();
     qVec3i spos = { 0, 0, 0, };
     qSceneSetPos(scene, &spos);
-*/
 
     qMatrix view;
     //qVec3f eye = { -220, 80, -220 };
-    //qVec3f eye = { 200, 80, 200 };
-    qVec3f eye = { 16, 16, 16 };
-    qVec3f at = { 0, 0, 0  };
+    //qVec3f eye = { 20, 80, 200 };
+    //qVec3f eye = { 32, 32, 32 };
+    //qVec3f at = { 0, 0, 0  };
+    qVec3f eye = { 0, 30, 0 };
+    qVec3f at = { -70, 20, -70 };
     qVec3f up = { 0, 1, 0 };
     qMatrixLookAt(&view, &eye, &at, &up);
     qShaderView(shader, &view);
@@ -122,11 +132,13 @@ int main() {
     gettimeofday(&last, 0);
     while (1) {
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-        //qSceneDraw(scene, shader);
+        qSceneDraw(scene, shader);
+/*
         qMatrix model;
         qMatrixIdentity(&model);
         qShaderModel(shader, &model);
         qChunkDraw(chunk);
+*/
         glfwSwapBuffers();
         ++frames;
         if (frames >= 100) {

@@ -17,6 +17,6 @@ qScene* qSceneNew();
 void qSceneDraw(qScene* self, qShader* shader);
 void qSceneSetPos(qScene* self, qVec3i* pos);
 qChunk* qSceneChunk(qScene* self, qVec3i* pos);
-qChunk* qSceneChunkLoad(qScene* self, qVec3i* pos);
+qChunk* qSceneChunkLoad(qScene* self, qVec3i* pos, U32 lod);
 
 #endif

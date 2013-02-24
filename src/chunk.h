@@ -40,6 +40,7 @@ typedef struct qChunk {
     qDrawBuf* buf;
 } qChunk; 
 
+typedef qBlock qPlane[qCHUNK_SIZE][qCHUNK_SIZE];
 
 qChunk* qChunkNew();
 void qChunkInit(qChunk* self, qVec3i* pos);

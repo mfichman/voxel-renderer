@@ -1,4 +1,5 @@
 #include "scene.h"
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -35,9 +36,9 @@ void qSceneSetPos(qScene* self, qVec3i* pos) {
         }
     }
 
-    S32 radius = 4;
+    S32 radius = 8;
     S32 depth = 2;
-    for (S32 x = -radius; x < radius; ++x) {
+    for (S32 x = -radius; x <= radius; ++x) {
         for (S32 z = -radius; z < radius; ++z) {
             for (S32 y = 1-depth; y <= 0; y++) { 
                qVec3i offset = { x*qCHUNK_SIZE, y*qCHUNK_SIZE, z*qCHUNK_SIZE };
@@ -50,12 +51,13 @@ void qSceneSetPos(qScene* self, qVec3i* pos) {
         }
     }
 
-    for (S32 x = -radius; x < radius; ++x) {
-        for (S32 z = -radius; z < radius; ++z) {
+    for (S32 x = -radius; x <= radius; ++x) {
+        for (S32 z = -radius; z <= radius; ++z) {
             for (S32 y = 1-depth; y <= 0; y++) { 
+                U32 lod = sqrtf(x*x+y*y)/4;
                 qVec3i offset = { x*qCHUNK_SIZE, y*qCHUNK_SIZE, z*qCHUNK_SIZE };
                 qVec3i cpos = { offset.x+rpos.x, offset.y+rpos.y, offset.z+rpos.z };
-                qChunk* chunk = qSceneChunkLoad(self, &cpos); 
+                qChunk* chunk = qSceneChunkLoad(self, &cpos, lod); 
                 chunk->state = qChunkACTIVE;
             }
         }
@@ -72,7 +74,7 @@ qChunk* qSceneChunk(qScene* self, qVec3i* pos) {
     return 0;
 }
 
-qChunk* qSceneChunkLoad(qScene* self, qVec3i* pos) {
+qChunk* qSceneChunkLoad(qScene* self, qVec3i* pos, U32 lod) {
     U32 index = 0;
     for (U32 i = 0; i < qSCENE_MAXCHUNKS; ++i) {
         qChunk* c = self->chunk[i];
@@ -85,9 +87,14 @@ qChunk* qSceneChunkLoad(qScene* self, qVec3i* pos) {
     if (!chunk) {
         self->chunk[index] = qChunkNew();
         chunk = self->chunk[index];
+        qChunkInit(chunk, pos);
+        qChunkGenMesh(chunk, lod);
+    } else if (chunk->pos.x != pos->x || chunk->pos.y != pos->y) {
+        qChunkInit(chunk, pos);
+        qChunkGenMesh(chunk, lod);
+    } else if (chunk->lod != lod) {
+        qChunkGenMesh(chunk, lod);
     }
-    qChunkInit(chunk, pos);
-    qChunkGenMesh(chunk, 0);
     return chunk;
 }
 
