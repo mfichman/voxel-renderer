@@ -16,6 +16,10 @@ typedef struct qVec3f {
     F32 z; 
 } qVec3f;
 
+qVec3i qVec3iSub(qVec3i* self, qVec3i* other);
+qVec3i qVec3iAdd(qVec3i* self, qVec3i* other);
+qVec3f qVec3iToVec3f(qVec3i* self);
+
 qVec3f qVec3fSub(qVec3f* self, qVec3f* other);
 qVec3f qVec3fAdd(qVec3f* self, qVec3f* other);
 qVec3f qVec3fUnit(qVec3f* self);

@@ -1,6 +1,21 @@
 #include "vec.h"
 #include "math.h"
 
+qVec3i qVec3iSub(qVec3i* self, qVec3i* other) {
+    qVec3i out = { self->x-other->x, self->y-other->y, self->z-other->z };
+    return out;
+}
+
+qVec3i qVec3iAdd(qVec3i* self, qVec3i* other) {
+    qVec3i out = { self->x+other->x, self->y+other->y, self->z+other->z };
+    return out;
+}
+
+qVec3f qVec3iToVec3f(qVec3i* self) {
+    qVec3f out = { self->x, self->y, self->z };
+    return out;
+}
+
 qVec3f qVec3fSub(qVec3f* self, qVec3f* other) {
     qVec3f out = { self->x-other->x, self->y-other->y, self->z-other->z };
     return out;

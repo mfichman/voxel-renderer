@@ -1,35 +1,39 @@
 #include "chunk.h"
 #include "common.h"
 #include "scene.h"
-#include "math.h"
+#include "timer.h"
 #include "shader.h"
 #include "drawbuf.h"
 #include "util.h"
-#include <sys/time.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <luajit-2.0/lua.h>
 #include <luajit-2.0/lualib.h>
 #include <luajit-2.0/lauxlib.h>
 
-struct lua_State* lua = 0;
+static struct lua_State* lua = 0;
+static qShader* shader = 0;
+static GLFWwindow* window = 0;
 
-int GLFWCALL qWinOnClose() {
+
+void qWinOnClose(GLFWwindow* window) {
     exit(0);
-    return 1;
 }
 
-void GLFWCALL qWinOnSize(int width, int height) {
+void qWinOnSize(GLFWwindow* window, int width, int height) {
 }
 
 void qConfigLoad() {
     lua = luaL_newstate();
+    luaL_openlibs(lua);
     if (!lua) {
         fprintf(stderr, "couldn't start lua\n");
         exit(1);
     }
     if (luaL_loadfile(lua, "config.lua")) {
         fprintf(stderr, "failed to open file\n");
+        fprintf(stderr, "%s\n", lua_tostring(lua, -1));
         exit(1);
     }
     if (lua_pcall(lua, 0, 0, 0)) {
@@ -46,8 +50,6 @@ GLfloat qConfigGetf(char const* name) {
 }
 
 
-qShader* shader = 0;
-
 void qWinInit() {
     GLfloat width = qConfigGetf("width");
     GLfloat height = qConfigGetf("height");
@@ -55,13 +57,14 @@ void qWinInit() {
         fprintf(stderr, "failed to initialize glfw\n");
         exit(1);
     }
-    if (!glfwOpenWindow(width, height, 8, 8, 8, 8, 24, 0, GLFW_WINDOW)) {
+    window = glfwCreateWindow(width, height, "", 0, 0);
+    if (!window) {
         fprintf(stderr, "failed to open window\n");
         exit(1);
     }
-    glfwSetWindowTitle("");
-    glfwSetWindowSizeCallback(qWinOnSize);
-    glfwSetWindowCloseCallback(qWinOnClose);
+    glfwMakeContextCurrent(window);
+    glfwSetWindowSizeCallback(window, qWinOnSize);
+    glfwSetWindowCloseCallback(window, qWinOnClose);
 
     glViewport(0, 0, width, height);
     glEnableVertexAttribArray(qShaderVERTEX);
@@ -79,9 +82,13 @@ void qWinInit() {
 
     // Set up cameras
     qMatrix proj;
-    qMatrixPerspective(&proj, 60.f, width/height, 1., 400.);
+    qMatrixPerspective(&proj, 60.f, width/height, 1., 800.);
     qShaderProj(shader, &proj);
 
+}
+
+void qUpdate(F64 delta) {
+    // Update the scene
 }
 
 extern U32 vertices;
@@ -94,63 +101,64 @@ int main() {
     glClearColor(.2, .2, .2, 1);
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-/*
-    qChunk* chunk = qChunkNew();
-    qVec3i pos1 = { 0, 0, 0 };
-    qChunkSetBlock(chunk, &pos1, 1);
-    qVec3i pos2 = { 0, 1, 0 };
-    qChunkSetBlock(chunk, &pos2, 1);
-    qVec3i pos3 = { 0, 0, 1 };
-    qChunkSetBlock(chunk, &pos3, 1);
-    qVec3i pos4 = { 0, 1, 1 };
-    qChunkSetBlock(chunk, &pos4, 1);
-    qVec3i pos5 = { 1, 0, 0 };
-    qChunkSetBlock(chunk, &pos5, 1);
-    qVec3i pos = { 0, 0, 0 };
-    qChunkInit(chunk, &pos);
-    qChunkGenMesh(chunk, 0);
-*/
-
-    qScene* scene = qSceneNew();
-    qVec3i spos = { 0, 0, 0, };
-    qSceneSetPos(scene, &spos);
 
     qMatrix view;
-    //qVec3f eye = { -220, 80, -220 };
-    //qVec3f eye = { 20, 80, 200 };
-    //qVec3f eye = { 32, 32, 32 };
-    //qVec3f at = { 0, 0, 0  };
-    qVec3f eye = { 0, 30, 0 };
-    qVec3f at = { -70, 20, -70 };
-    qVec3f up = { 0, 1, 0 };
-    qMatrixLookAt(&view, &eye, &at, &up);
+    qVec3i eye = { 100, 60, 1 };
+    qVec3i at = { 0, -100, 0 };//-120 };
+    qVec3i up = { 0, 1, 0 };
+    qVec3f eyef = qVec3iToVec3f(&eye);
+    qVec3f atf = qVec3iToVec3f(&at);
+    qVec3f upf = qVec3iToVec3f(&up);
+    qCamera cam = { eye, at, up };
+
+    qScene* scene = qSceneNew();
+    qSceneSetPos(scene, &cam.eye);
+    scene->camera = cam;
+
+    qMatrixLookAt(&view, &eyef, &atf, &upf);
     qShaderView(shader, &view);
 
     printf("%d vertices\n", vertices);
+    F64 accum = 0.;
+    F64 step = 1./60.;
     S32 frames = 0;
-    struct timeval last = { 0, 0 };
-    gettimeofday(&last, 0);
+    qTimer perf;
+    qTimerStart(&perf);
+    qTimer time;
+    qTimerStart(&time);
+
     while (1) {
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         qSceneDraw(scene, shader);
-/*
-        qMatrix model;
-        qMatrixIdentity(&model);
-        qShaderModel(shader, &model);
-        qChunkDraw(chunk);
-*/
-        glfwSwapBuffers();
+        glfwSwapBuffers(window);
+        
+        accum += qTimerLap(&time);
+        while (accum > step) {
+            accum -= step;
+            qUpdate(step);
+
+            // <hack>
+             
+            // </hack>
+        }
         ++frames;
         if (frames >= 100) {
-            struct timeval now = { 0, 0 };
-            gettimeofday(&now, 0);
-            F64 elapsed = (now.tv_usec-last.tv_usec) / 1000000.f;
-            elapsed += now.tv_sec-last.tv_sec;
+            F64 elapsed = qTimerLap(&perf);
             printf("%f fps\n", frames/elapsed);
             frames = 0;
-            last = now;
         }
     }
 
     return 0;
 }
+
+struct qTestStruct {
+    int a;
+    int b;
+};
+
+void qTest(struct qTestStruct* str) {
+    printf("hello %d %d\n", str->a, str->b);
+}
+
+

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "drawbuf.h"
+#include "camera.h"
 #include "vec.h"
 
 typedef enum qBlockType {
@@ -23,7 +24,7 @@ typedef enum qBlockFace {
 
 typedef U8 qBlock;
 
-#define qCHUNK_SIZE 32
+#define qCHUNK_SIZE 16
 #define qBLOCK_SIZE 1
 
 typedef enum qChunkState {
@@ -37,7 +38,7 @@ typedef struct qChunk {
     qChunkState state;
     qVec3i pos;
     U32 lod;
-    qDrawBuf* buf;
+    qDrawBuf* buf[6]; // One for each face
 } qChunk; 
 
 typedef qBlock qPlane[qCHUNK_SIZE][qCHUNK_SIZE];
@@ -48,7 +49,7 @@ void qChunkGenMesh(qChunk* self, U32 lod);
 void qChunkGenMeshX(qChunk* self);
 void qChunkGenMeshY(qChunk* self);
 void qChunkGenMeshZ(qChunk* self);
-void qChunkDraw(qChunk* self);
+void qChunkDraw(qChunk* self, qCamera* cam);
 void qChunkSetBlock(qChunk* self, qVec3i* vec, qBlock block);
 qBlock qChunkBlock(qChunk* self, qVec3i* vec);
 qBlock qChunkAdjBlock(qChunk* self, qVec3i* vec, qBlockFace i);

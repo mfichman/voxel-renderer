@@ -1,7 +1,7 @@
 #ifndef qCOMMON_H
 #define qCOMMON_H
 
-#include <GL/glfw.h>
+#include <GLFW/glfw3.h>
 #include <stdint.h>
 
 typedef uint8_t U8;

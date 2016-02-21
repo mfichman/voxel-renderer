@@ -4,13 +4,14 @@
 #include "common.h"
 #include "chunk.h"
 #include "shader.h"
+#include "camera.h"
 #include "vec.h"
 
 #define qSCENE_MAXCHUNKS 1024
 
 typedef struct qScene {
     qChunk* chunk[qSCENE_MAXCHUNKS]; 
-    qVec3i pos;
+    qCamera camera;
 } qScene;
 
 qScene* qSceneNew();

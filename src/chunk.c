@@ -18,7 +18,9 @@ qChunk* qChunkNew() {
     qChunk* self = calloc(sizeof(qChunk), 1);
     self->state = qChunkINACTIVE;
     self->lod = 0;
-    self->buf = qDrawBufNew();
+    for (U32 i = 0; i < 6; ++i) {
+        self->buf[i] = qDrawBufNew();
+    }
     self->pos.x = 0;
     self->pos.y = 0;
     self->pos.z = 0;
@@ -40,9 +42,11 @@ void qChunkInit(qChunk* self, qVec3i* pos) {
                 S64 xabs = x+pos->x;
                 S64 yabs = y+pos->y;
                 S64 zabs = z+pos->z; 
-                F64 xs = (xabs)/48.;
-                F64 ys = (yabs+island)/16.;
-                F64 zs = (zabs)/48.;
+                //F64 xs = (xabs)/128.;
+                F64 xs = (xabs)/32.;
+                F64 ys = (yabs+island)/32.;
+                //F64 zs = (zabs)/128.;
+                F64 zs = (zabs)/32.;
                 F64 val = qSimplexNoise(xs, ys, zs);
                 F64 hfact = (F64)(y+pos->y)/(F64)qCHUNK_SIZE;
                 if (pos->y >= 0) {
@@ -81,7 +85,9 @@ void qChunkInit(qChunk* self, qVec3i* pos) {
 }
 
 void qChunkDel(qChunk* self) {
-    qDrawBufDel(self->buf);
+    for (U32 i = 0; i < 6; ++i) {
+        qDrawBufDel(self->buf[i]);
+    }
     free(self);
 }
 
@@ -91,7 +97,9 @@ void qChunkGenMesh(qChunk* self, U32 lod) {
     qChunkGenMeshX(self);
     qChunkGenMeshY(self);
     qChunkGenMeshZ(self);
-    qDrawBufCommit(self->buf);
+    for (U32 i = 0; i < 6; ++i) {
+        qDrawBufCommit(self->buf[i]);
+    }
 }
 
 void qChunkGenFace(qChunk* self, qVec3i* pos, qBlockFace i, U32 width, U32 height) {
@@ -145,7 +153,7 @@ void qChunkGenFace(qChunk* self, qVec3i* pos, qBlockFace i, U32 width, U32 heigh
         v.nz = normal->z;
         v.u = 0;
         v.v = 0;
-        qDrawBufVertex(self->buf, &v);
+        qDrawBufVertex(self->buf[i], &v);
     }
     vertices += 4;
 }
@@ -176,7 +184,7 @@ void qChunkGenPlane(qChunk* self, qPlane plane, qBlockFace face, U32 k) {
 growHeight:
             if (fail <= 1 && width >= height && (j+height < qCHUNK_SIZE)) {
                 // Grow the height of the face.  Check all the blocks that
-                // would be coalseced to make sure they are of the same type.
+                // would be coalesced to make sure they are of the same type.
                 // If not, then escape.  Example:
                 // +:(i+0,j+0) +:(i+0,j+1)
                 // *:(i+1,j+0) *:(i+1,j+1)
@@ -194,7 +202,7 @@ growHeight:
             }
 growWidth:
             if (fail <= 1 && width <= height && (i+width < qCHUNK_SIZE)) {
-                // Grow the width fo the face
+                // Grow the width of the face
                 for (U32 dj = j; dj < j+height; dj += stride) {
                     qBlock grow = plane[i+width][dj];
                     if (grow != cur) { ++fail; goto growHeight; }
@@ -302,11 +310,33 @@ void qChunkGenMeshZ(qChunk* self) {
     }
 }
 
-void qChunkDraw(qChunk* self) {
-    qDrawBufDraw(self->buf);
+void qChunkDraw(qChunk* self, qCamera* cam) {
+    // Draw a chunk into its DrawBuf so that it is ready to be rendered to the
+    // screen when visible.
+    qVec3f normals[] = {
+        { 1, 0, 0 }, // Right
+        { 0, 1, 0 }, // Top
+        { 0, 0, 1 }, // Front
+        { -1, 0, 0 }, // Left
+        { 0, -1, 0 }, // Bottom
+        { 0, 0, -1 }, // Back
+    };
+    qVec3i dir = qVec3iSub(&self->pos, &cam->eye);
+    qVec3f dirf = { dir.x, dir.y, dir.z };
+    qVec3i camDir = qCameraDir(cam);
+    qVec3f camDirf = qVec3iToVec3f(&camDir);
+    for (U32 i = 0; i < 6; ++i) {
+        F32 faceDot = qVec3fDot(&dirf, &normals[i]);
+        F32 camDot = qVec3fDot(&dirf, &camDirf);
+        if (faceDot <= 0 && camDot >= 0) {
+            qDrawBufDraw(self->buf[i]);
+        }
+    }
 }
 
 void qChunkSetBlock(qChunk* self, qVec3i* vec, qBlock block) {
+    // Sets the block at the given location within the chunk. 'vec' is relative
+    // to the chunk.
     assert(vec->x < qCHUNK_SIZE);
     assert(vec->y < qCHUNK_SIZE);
     assert(vec->z < qCHUNK_SIZE);
@@ -314,6 +344,8 @@ void qChunkSetBlock(qChunk* self, qVec3i* vec, qBlock block) {
 }
 
 qBlock qChunkBlock(qChunk* self, qVec3i* vec) {
+    // Returns the block at the given location within the chunk. 'vec' is
+    // relative to the chunk.
     if (vec->x >= qCHUNK_SIZE || vec->y >= qCHUNK_SIZE || vec->z >= qCHUNK_SIZE) {
         return 0;
     }

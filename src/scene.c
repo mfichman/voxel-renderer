@@ -15,7 +15,7 @@ void qSceneDraw(qScene* self, qShader* shader) {
             qMatrix model;
             qMatrixTranslate(&model, chunk->pos.x, chunk->pos.y, chunk->pos.z);
             qShaderModel(shader, &model);
-            qChunkDraw(chunk);
+            qChunkDraw(chunk, &self->camera);
         } 
     }
 }
@@ -23,11 +23,10 @@ void qSceneDraw(qScene* self, qShader* shader) {
 void qSceneSetPos(qScene* self, qVec3i* pos) {
     // Compute the 9 nearest blocks that are in visual range.  If those blocks
     // are not in the cache, then load them and evict another block.
-    self->pos = *pos; 
     qVec3i rpos;
-    rpos.x = pos->x/qBLOCK_SIZE*qBLOCK_SIZE;
-    rpos.y = pos->y/qBLOCK_SIZE*qBLOCK_SIZE;
-    rpos.z = pos->z/qBLOCK_SIZE*qBLOCK_SIZE;
+    rpos.x = pos->x/qCHUNK_SIZE;
+    rpos.y = pos->y/qCHUNK_SIZE;
+    rpos.z = pos->z/qCHUNK_SIZE;
     
     for (U32 i = 0; i < qSCENE_MAXCHUNKS; ++i) {
         qChunk* chunk = self->chunk[i];
@@ -36,8 +35,8 @@ void qSceneSetPos(qScene* self, qVec3i* pos) {
         }
     }
 
-    S32 radius = 8;
-    S32 depth = 2;
+    S32 radius = 11;
+    S32 depth = 3;
     for (S32 x = -radius; x <= radius; ++x) {
         for (S32 z = -radius; z < radius; ++z) {
             for (S32 y = 1-depth; y <= 0; y++) { 
@@ -54,7 +53,8 @@ void qSceneSetPos(qScene* self, qVec3i* pos) {
     for (S32 x = -radius; x <= radius; ++x) {
         for (S32 z = -radius; z <= radius; ++z) {
             for (S32 y = 1-depth; y <= 0; y++) { 
-                U32 lod = sqrtf(x*x+y*y)/4;
+                U32 lod = 0;//sqrtf(x*x+y*y)/4;
+                // Calculate LOD as distance from current position
                 qVec3i offset = { x*qCHUNK_SIZE, y*qCHUNK_SIZE, z*qCHUNK_SIZE };
                 qVec3i cpos = { offset.x+rpos.x, offset.y+rpos.y, offset.z+rpos.z };
                 qChunk* chunk = qSceneChunkLoad(self, &cpos, lod); 
